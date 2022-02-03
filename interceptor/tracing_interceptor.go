@@ -38,6 +38,7 @@ import (
 const (
 	workflowIDTagKey = "temporalWorkflowID"
 	runIDTagKey      = "temporalRunID"
+	activityIDTagKey = "temporalActivityID"
 )
 
 // Tracer is an interface for tracing implementations as used by
@@ -327,6 +328,7 @@ func (t *tracingActivityInboundInterceptor) ExecuteActivity(
 		Tags: map[string]string{
 			workflowIDTagKey: info.WorkflowExecution.ID,
 			runIDTagKey:      info.WorkflowExecution.RunID,
+			activityIDTagKey: info.ActivityID,
 		},
 		FromHeader: true,
 	})
