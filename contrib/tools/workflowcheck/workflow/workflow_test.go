@@ -38,6 +38,7 @@ func Test(t *testing.T) {
 		analysistest.TestData(),
 		workflow.NewChecker(workflow.Config{
 			EnableObjectFacts: true,
+			DeterminismDebug:  true,
 		}).NewAnalyzer(),
 		"a",
 	)

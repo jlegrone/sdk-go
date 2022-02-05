@@ -294,8 +294,13 @@ func (c *collector) collectFuncInfo(fn *types.Func, decl *ast.FuncDecl) {
 			return false
 		}
 
+		// if n != nil {
+		// 	c.checker.debugf("Inspecting ast node %T %v", n, n)
+		// }
+
 		switch n := n.(type) {
 		case *ast.CallExpr:
+			c.checker.debugf("Inspecting *ast.CallExpr: %v", n.Fun)
 			// Get the callee
 			if callee, _ := typeutil.Callee(c.pass.TypesInfo, n).(*types.Func); callee != nil {
 				// If it's in a different package, check externals
