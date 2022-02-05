@@ -302,20 +302,13 @@ func (c *collector) collectFuncInfo(fn *types.Func, decl *ast.FuncDecl) {
 		case *ast.CallExpr:
 			// Get the callee
 			if callee, _ := typeutil.Callee(c.pass.TypesInfo, n).(*types.Func); callee != nil {
-				c.checker.debugf("Inspecting %v call of %v", fn.FullName(), callee.FullName())
+				// c.checker.debugf("Inspecting %s call of %s", fn.FullName(), callee.FullName())
 				// If it's in a different package, check externals
 				if c.pass.Pkg != callee.Pkg() {
 					calleeReasons := c.externalFuncNonDeterminisms(callee)
-					c.checker.debugf("Inspecting %v call of %v: %s", fn.FullName(), callee.FullName(), calleeReasons)
+					// c.checker.debugf("Inspecting %s call of %s: %s", fn.FullName(), callee.FullName(), calleeReasons)
 					if len(calleeReasons) > 0 {
-						c.checker.debugf("Marking %v as non-deterministic because it calls %v", fn.FullName(), callee.FullName())
-						pos := c.pass.Fset.Position(n.Pos())
-						info.reasons = append(info.reasons, &ReasonFuncCall{
-							SourcePos: &pos,
-							FuncName:  callee.FullName(),
-						})
-					} else if c.checker.IdentRefs.Nondeterministic(fn.FullName(), c.checker) {
-						c.checker.debugf("!!! Marking %v as non-deterministic because it calls %v", fn.FullName(), callee.FullName())
+						c.checker.debugf("Marking %s as non-deterministic because it calls %s", fn.FullName(), callee.FullName())
 						pos := c.pass.Fset.Position(n.Pos())
 						info.reasons = append(info.reasons, &ReasonFuncCall{
 							SourcePos: &pos,
@@ -325,6 +318,15 @@ func (c *collector) collectFuncInfo(fn *types.Func, decl *ast.FuncDecl) {
 				} else {
 					// Otherwise, we simply add as a same-package call
 					info.addSamePackageCall(c.funcInfo(callee), n.Pos())
+				}
+
+				if DefaultIdentRefs.Nondeterministic(callee.FullName(), c.checker) {
+					c.checker.debugf("!!! Marking %s as non-deterministic because it calls %s", fn.FullName(), callee.FullName())
+					pos := c.pass.Fset.Position(n.Pos())
+					info.reasons = append(info.reasons, &ReasonFuncCall{
+						SourcePos: &pos,
+						FuncName:  callee.FullName(),
+					})
 				}
 			}
 		case *ast.GoStmt:
