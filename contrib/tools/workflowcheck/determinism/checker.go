@@ -314,6 +314,13 @@ func (c *collector) collectFuncInfo(fn *types.Func, decl *ast.FuncDecl) {
 							SourcePos: &pos,
 							FuncName:  callee.FullName(),
 						})
+					} else if c.checker.IdentRefs.Nondeterministic(fn.FullName(), c.checker) {
+						c.checker.debugf("!!! Marking %v as non-deterministic because it calls %v", fn.FullName(), callee.FullName())
+						pos := c.pass.Fset.Position(n.Pos())
+						info.reasons = append(info.reasons, &ReasonFuncCall{
+							SourcePos: &pos,
+							FuncName:  callee.FullName(),
+						})
 					}
 				} else {
 					// Otherwise, we simply add as a same-package call
