@@ -63,6 +63,7 @@ func (i IdentRefs) Clone() IdentRefs {
 
 // Nondeterministic TODO
 func (i IdentRefs) Nondeterministic(ident string, c *Checker) bool {
+	c.debugf("Checking ident: %s", ident)
 	if result, ok := i[ident]; ok {
 		return result
 	}
