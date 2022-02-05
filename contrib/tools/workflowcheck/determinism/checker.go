@@ -144,7 +144,7 @@ func (c *Checker) Run(pass *analysis.Pass) (PackageNonDeterminisms, error) {
 						for _, varName := range spec.Names {
 							if varType, _ := pass.TypesInfo.ObjectOf(varName).(*types.Var); varType != nil && varType.Pkg() != nil {
 								fullName := varType.Pkg().Path() + "." + varType.Name()
-								if c.IdentRefs.Nondeterministic(fullName) {
+								if c.IdentRefs.Nondeterministic(fullName, c) {
 									c.debugf("Marking %v as non-deterministic because it matched a pattern", fullName)
 									pos := pass.Fset.Position(varType.Pos())
 									coll.nonDetVars[varType] = NonDeterminisms{&ReasonDecl{SourcePos: &pos}}
@@ -157,7 +157,7 @@ func (c *Checker) Run(pass *analysis.Pass) (PackageNonDeterminisms, error) {
 							// Only need to match explicitly defined methods
 							for i := 0; i < iface.NumExplicitMethods(); i++ {
 								info := coll.funcInfo(iface.ExplicitMethod(i))
-								if c.IdentRefs.Nondeterministic(info.fn.FullName()) {
+								if c.IdentRefs.Nondeterministic(info.fn.FullName(), c) {
 									c.debugf("Marking %v as non-deterministic because it matched a pattern", info.fn.FullName())
 									pos := pass.Fset.Position(spec.Pos())
 									info.reasons = append(info.reasons, &ReasonDecl{SourcePos: &pos})
@@ -274,7 +274,7 @@ func (c *collector) collectFuncInfo(fn *types.Func, decl *ast.FuncDecl) {
 	info := c.funcInfo(fn)
 
 	// If matches a pattern, can eagerly stop here
-	c.checker.IdentRefs.Nondeterministic(fn.FullName())
+	c.checker.IdentRefs.Nondeterministic(fn.FullName(), c.checker)
 	match, ok := c.checker.IdentRefs[fn.FullName()]
 	if ok {
 		if match {

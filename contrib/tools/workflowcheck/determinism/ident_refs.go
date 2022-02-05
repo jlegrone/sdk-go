@@ -24,7 +24,6 @@ package determinism
 
 import (
 	"flag"
-	"fmt"
 	"strings"
 )
 
@@ -63,11 +62,11 @@ func (i IdentRefs) Clone() IdentRefs {
 }
 
 // Nondeterministic TODO
-func (i IdentRefs) Nondeterministic(ident string) bool {
+func (i IdentRefs) Nondeterministic(ident string, c *Checker) bool {
 	if result, ok := i[ident]; ok {
 		return result
 	}
-	fmt.Println("Unknown ident:", ident)
+	c.debugf("Unknown ident: %s", ident)
 	return false
 }
 
