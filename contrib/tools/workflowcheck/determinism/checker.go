@@ -23,6 +23,7 @@
 package determinism
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
 	"go/types"
@@ -472,6 +473,7 @@ func (p *PackageLookupCache) PackageNonDeterminisms(pkg *types.Package) PackageN
 		// We don't care whether it can be imported, we store in the map either way
 		// to save future lookups
 		p.pass.ImportPackageFact(pkg, &ret)
+		fmt.Println("imported fact", pkg.Path(), ret.String())
 		p.packageNonDeterminisms[pkg] = ret
 	}
 	return ret
