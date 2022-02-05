@@ -67,7 +67,7 @@ func (i IdentRefs) Nondeterministic(ident string, c *Checker) bool {
 	if result, ok := i[ident]; ok {
 		return result
 	}
-	c.debugf("Unknown ident: %s", ident)
+	// c.debugf("Unknown ident: %s", ident)
 	return false
 }
 

@@ -300,12 +300,13 @@ func (c *collector) collectFuncInfo(fn *types.Func, decl *ast.FuncDecl) {
 
 		switch n := n.(type) {
 		case *ast.CallExpr:
-			c.checker.debugf("Inspecting *ast.CallExpr: %v", n.Fun)
 			// Get the callee
 			if callee, _ := typeutil.Callee(c.pass.TypesInfo, n).(*types.Func); callee != nil {
+				c.checker.debugf("Inspecting %v call of %v", fn.FullName(), callee.FullName())
 				// If it's in a different package, check externals
 				if c.pass.Pkg != callee.Pkg() {
 					calleeReasons := c.externalFuncNonDeterminisms(callee)
+					c.checker.debugf("Inspecting %v call of %v: %s", fn.FullName(), callee.FullName(), calleeReasons)
 					if len(calleeReasons) > 0 {
 						c.checker.debugf("Marking %v as non-deterministic because it calls %v", fn.FullName(), callee.FullName())
 						pos := c.pass.Fset.Position(n.Pos())
