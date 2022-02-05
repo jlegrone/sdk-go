@@ -25,14 +25,15 @@ package workflow_test
 import (
 	"testing"
 
-	"go.temporal.io/sdk/contrib/tools/workflowcheck/workflow"
 	"golang.org/x/tools/go/analysis/analysistest"
+
+	"go.temporal.io/sdk/contrib/tools/workflowcheck/workflow"
 )
 
 func Test(t *testing.T) {
 	// This intentionally only does a few tests. Most of the tests for
 	// non-determinism are in ../determinism/determinism_test.go.
-	analysistest.Run(
+	results := analysistest.Run(
 		t,
 		analysistest.TestData(),
 		workflow.NewChecker(workflow.Config{
@@ -40,4 +41,10 @@ func Test(t *testing.T) {
 		}).NewAnalyzer(),
 		"a",
 	)
+
+	for _, result := range results {
+		for _, diagnostic := range result.Diagnostics {
+			t.Error(diagnostic.Message)
+		}
+	}
 }

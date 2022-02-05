@@ -24,6 +24,7 @@ package determinism
 
 import (
 	"flag"
+	"fmt"
 	"strings"
 )
 
@@ -59,6 +60,15 @@ func (i IdentRefs) Clone() IdentRefs {
 		ret[k] = v
 	}
 	return ret
+}
+
+// Nondeterministic TODO
+func (i IdentRefs) Nondeterministic(ident string) bool {
+	if result, ok := i[ident]; ok {
+		return result
+	}
+	fmt.Println("Unknown ident:", ident)
+	return false
 }
 
 // SetAllStrings sets values based on the given string values. The strings are
