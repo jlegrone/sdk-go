@@ -159,6 +159,10 @@ type TracerStartSpanOptions struct {
 	// IdempotencyKey should be treated as opaque data by Tracer implementations.
 	// Do not attempt to parse it, as the format is subject to change.
 	IdempotencyKey string
+
+	// Args are the optional input payloads associated with the workflow, activity,
+	// signal, update, or query request. This may be nil.
+	Args []any
 }
 
 // TracerSpanRef represents a span reference such as a parent.
@@ -258,6 +262,7 @@ func (t *tracingClientOutboundInterceptor) ExecuteWorkflow(
 		Tags:      map[string]string{workflowIDTagKey: in.Options.ID},
 		ToHeader:  true,
 		Time:      time.Now(),
+		Args:      in.Args,
 	})
 	if err != nil {
 		return nil, err
@@ -282,6 +287,7 @@ func (t *tracingClientOutboundInterceptor) SignalWorkflow(ctx context.Context, i
 		Tags:      map[string]string{workflowIDTagKey: in.WorkflowID},
 		ToHeader:  true,
 		Time:      time.Now(),
+		Args:      []any{in.Arg},
 	})
 	if err != nil {
 		return err
@@ -304,6 +310,7 @@ func (t *tracingClientOutboundInterceptor) SignalWithStartWorkflow(
 		Name:      in.WorkflowType,
 		Tags:      map[string]string{workflowIDTagKey: in.Options.ID},
 		ToHeader:  true,
+		Args:      in.Args,
 	})
 	if err != nil {
 		return nil, err
@@ -331,6 +338,7 @@ func (t *tracingClientOutboundInterceptor) QueryWorkflow(
 		Tags:      map[string]string{workflowIDTagKey: in.WorkflowID},
 		ToHeader:  true,
 		Time:      time.Now(),
+		Args:      in.Args,
 	})
 	if err != nil {
 		return nil, err
@@ -383,6 +391,7 @@ func (t *tracingActivityInboundInterceptor) ExecuteActivity(
 		},
 		FromHeader: true,
 		Time:       info.StartedTime,
+		Args:       in.Args,
 	})
 	if err != nil {
 		return nil, err
@@ -434,6 +443,7 @@ func (t *tracingWorkflowInboundInterceptor) ExecuteWorkflow(
 		FromHeader:     true,
 		Time:           t.info.WorkflowStartTime,
 		IdempotencyKey: t.newIdempotencyKey(),
+		Args:           in.Args,
 	})
 	if err != nil {
 		return nil, err
@@ -463,7 +473,7 @@ func (t *tracingWorkflowInboundInterceptor) HandleSignal(ctx workflow.Context, i
 		FromHeader:     true,
 		Time:           time.Now(),
 		IdempotencyKey: t.newIdempotencyKey(),
-	})
+		Args:           []any{in.Arg}})
 	if err != nil {
 		return err
 	}
@@ -494,6 +504,7 @@ func (t *tracingWorkflowInboundInterceptor) HandleQuery(
 		},
 		FromHeader: true,
 		Time:       time.Now(),
+		Args:       in.Args,
 		// We intentionally do not set IdempotencyKey here because queries are not recorded in
 		// workflow history. When the tracing interceptor's span counter is reset between workflow
 		// replays, old queries will not be processed which could result in idempotency key
@@ -521,7 +532,7 @@ func (t *tracingWorkflowOutboundInterceptor) ExecuteActivity(
 	args ...interface{},
 ) workflow.Future {
 	// Start span writing to header
-	span, ctx, err := t.startNonReplaySpan(ctx, "StartActivity", activityType, true)
+	span, ctx, err := t.startNonReplaySpan(ctx, "StartActivity", activityType, true, args)
 	if err != nil {
 		return err
 	}
@@ -536,7 +547,7 @@ func (t *tracingWorkflowOutboundInterceptor) ExecuteLocalActivity(
 	args ...interface{},
 ) workflow.Future {
 	// Start span writing to header
-	span, ctx, err := t.startNonReplaySpan(ctx, "StartActivity", activityType, true)
+	span, ctx, err := t.startNonReplaySpan(ctx, "StartActivity", activityType, true, args)
 	if err != nil {
 		return err
 	}
@@ -558,7 +569,7 @@ func (t *tracingWorkflowOutboundInterceptor) ExecuteChildWorkflow(
 	args ...interface{},
 ) workflow.ChildWorkflowFuture {
 	// Start span writing to header
-	span, ctx, err := t.startNonReplaySpan(ctx, "StartChildWorkflow", childWorkflowType, false)
+	span, ctx, err := t.startNonReplaySpan(ctx, "StartChildWorkflow", childWorkflowType, false, args)
 	if err != nil {
 		return err
 	}
@@ -578,7 +589,7 @@ func (t *tracingWorkflowOutboundInterceptor) SignalExternalWorkflow(
 	if !t.root.options.DisableSignalTracing {
 		var span TracerSpan
 		var futErr workflow.ChildWorkflowFuture
-		span, ctx, futErr = t.startNonReplaySpan(ctx, "SignalExternalWorkflow", signalName, false)
+		span, ctx, futErr = t.startNonReplaySpan(ctx, "SignalExternalWorkflow", signalName, false, []any{arg})
 		if futErr != nil {
 			return futErr
 		}
@@ -598,7 +609,7 @@ func (t *tracingWorkflowOutboundInterceptor) SignalChildWorkflow(
 	if !t.root.options.DisableSignalTracing {
 		var span TracerSpan
 		var futErr workflow.ChildWorkflowFuture
-		span, ctx, futErr = t.startNonReplaySpan(ctx, "SignalChildWorkflow", signalName, false)
+		span, ctx, futErr = t.startNonReplaySpan(ctx, "SignalChildWorkflow", signalName, false, []any{arg})
 		if futErr != nil {
 			return futErr
 		}
@@ -637,6 +648,7 @@ func (t *tracingWorkflowOutboundInterceptor) startNonReplaySpan(
 	operation string,
 	name string,
 	dependedOn bool,
+	args []any,
 ) (span TracerSpan, newCtx workflow.Context, futErr workflow.ChildWorkflowFuture) {
 	// Noop span if replaying
 	if workflow.IsReplaying(ctx) {
@@ -653,6 +665,7 @@ func (t *tracingWorkflowOutboundInterceptor) startNonReplaySpan(
 		},
 		ToHeader: true,
 		Time:     time.Now(),
+		Args:     args,
 	})
 	if err != nil {
 		return nopSpan{}, ctx, newErrFut(ctx, err)

@@ -960,7 +960,7 @@ func (h *testWorkflowHandle) rerunAsChild() bool {
 
 	// pass down the last completion result
 	var result *commonpb.Payloads
-	// TODO (shtin): convert env.testResult to *commonpb.Payloads
+	// TODO (shtin): convert env.testResult to *commonpb.Args
 	if ev, ok := env.testResult.(*EncodedValue); ev != nil && ok {
 		result = ev.value
 	}
