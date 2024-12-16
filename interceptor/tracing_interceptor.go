@@ -112,6 +112,20 @@ type TracerOptions struct {
 
 	// DisableQueryTracing can be set to disable query tracing.
 	DisableQueryTracing bool
+
+	// GetSpanTagsFunc generates custom tags to be included on spans created
+	// by the tracer. The payload argument may be a workflow, activity, signal,
+	// or update payload.
+	//
+	// TODO(jlegrone): This could be made more flexible by including the SpanStartOptions
+	//                 as an argument. Also, how should we treat tag key/values that
+	//                 conflict with tags the tracer already uses by default?
+	GetSpanTagsFunc func(payload any) map[string]string
+
+	// GetLogFieldsFunc generates custom fields to be included on logs emitted
+	// by the workflow or activity. The payload argument may be a workflow,
+	// activity, signal, or update payload.
+	GetLogFieldsFunc func(payload any) map[string]any
 }
 
 // TracerStartSpanOptions are options for Tracer.StartSpan.
@@ -159,10 +173,6 @@ type TracerStartSpanOptions struct {
 	// IdempotencyKey should be treated as opaque data by Tracer implementations.
 	// Do not attempt to parse it, as the format is subject to change.
 	IdempotencyKey string
-
-	// Args are the optional input payloads associated with the workflow, activity,
-	// signal, update, or query request. This may be nil.
-	Args []any
 }
 
 // TracerSpanRef represents a span reference such as a parent.
@@ -259,10 +269,9 @@ func (t *tracingClientOutboundInterceptor) ExecuteWorkflow(
 	span, ctx, err := t.root.startSpanFromContext(ctx, &TracerStartSpanOptions{
 		Operation: "StartWorkflow",
 		Name:      in.WorkflowType,
-		Tags:      map[string]string{workflowIDTagKey: in.Options.ID},
+		Tags:      mergeTags(map[string]string{workflowIDTagKey: in.Options.ID}, t.root.options.GetSpanTagsFunc, in.Args...),
 		ToHeader:  true,
 		Time:      time.Now(),
-		Args:      in.Args,
 	})
 	if err != nil {
 		return nil, err
@@ -284,10 +293,9 @@ func (t *tracingClientOutboundInterceptor) SignalWorkflow(ctx context.Context, i
 	span, ctx, err := t.root.startSpanFromContext(ctx, &TracerStartSpanOptions{
 		Operation: "SignalWorkflow",
 		Name:      in.SignalName,
-		Tags:      map[string]string{workflowIDTagKey: in.WorkflowID},
+		Tags:      mergeTags(map[string]string{workflowIDTagKey: in.WorkflowID}, t.root.options.GetSpanTagsFunc, in.Arg),
 		ToHeader:  true,
 		Time:      time.Now(),
-		Args:      []any{in.Arg},
 	})
 	if err != nil {
 		return err
@@ -308,9 +316,8 @@ func (t *tracingClientOutboundInterceptor) SignalWithStartWorkflow(
 	span, ctx, err := t.root.startSpanFromContext(ctx, &TracerStartSpanOptions{
 		Operation: "SignalWithStartWorkflow",
 		Name:      in.WorkflowType,
-		Tags:      map[string]string{workflowIDTagKey: in.Options.ID},
+		Tags:      mergeTags(map[string]string{workflowIDTagKey: in.Options.ID}, t.root.options.GetSpanTagsFunc, in.Args...),
 		ToHeader:  true,
-		Args:      in.Args,
 	})
 	if err != nil {
 		return nil, err
@@ -335,10 +342,9 @@ func (t *tracingClientOutboundInterceptor) QueryWorkflow(
 	span, ctx, err := t.root.startSpanFromContext(ctx, &TracerStartSpanOptions{
 		Operation: "QueryWorkflow",
 		Name:      in.QueryType,
-		Tags:      map[string]string{workflowIDTagKey: in.WorkflowID},
+		Tags:      mergeTags(map[string]string{workflowIDTagKey: in.WorkflowID}, t.root.options.GetSpanTagsFunc, in.Args...),
 		ToHeader:  true,
 		Time:      time.Now(),
-		Args:      in.Args,
 	})
 	if err != nil {
 		return nil, err
@@ -384,14 +390,13 @@ func (t *tracingActivityInboundInterceptor) ExecuteActivity(
 		Operation:  "RunActivity",
 		Name:       info.ActivityType.Name,
 		DependedOn: true,
-		Tags: map[string]string{
+		Tags: mergeTags(map[string]string{
 			workflowIDTagKey: info.WorkflowExecution.ID,
 			runIDTagKey:      info.WorkflowExecution.RunID,
 			activityIDTagKey: info.ActivityID,
-		},
+		}, t.root.options.GetSpanTagsFunc, in.Args...),
 		FromHeader: true,
 		Time:       info.StartedTime,
-		Args:       in.Args,
 	})
 	if err != nil {
 		return nil, err
@@ -436,14 +441,13 @@ func (t *tracingWorkflowInboundInterceptor) ExecuteWorkflow(
 	span, ctx, err := t.root.startSpanFromWorkflowContext(ctx, &TracerStartSpanOptions{
 		Operation: "RunWorkflow",
 		Name:      t.info.WorkflowType.Name,
-		Tags: map[string]string{
+		Tags: mergeTags(map[string]string{
 			workflowIDTagKey: t.info.WorkflowExecution.ID,
 			runIDTagKey:      t.info.WorkflowExecution.RunID,
-		},
+		}, t.root.options.GetSpanTagsFunc, in.Args...),
 		FromHeader:     true,
 		Time:           t.info.WorkflowStartTime,
 		IdempotencyKey: t.newIdempotencyKey(),
-		Args:           in.Args,
 	})
 	if err != nil {
 		return nil, err
@@ -466,14 +470,14 @@ func (t *tracingWorkflowInboundInterceptor) HandleSignal(ctx workflow.Context, i
 	span, ctx, err := t.root.startSpanFromWorkflowContext(ctx, &TracerStartSpanOptions{
 		Operation: "HandleSignal",
 		Name:      in.SignalName,
-		Tags: map[string]string{
+		Tags: mergeTags(map[string]string{
 			workflowIDTagKey: info.WorkflowExecution.ID,
 			runIDTagKey:      info.WorkflowExecution.RunID,
-		},
+		}, t.root.options.GetSpanTagsFunc, in.Arg),
 		FromHeader:     true,
 		Time:           time.Now(),
 		IdempotencyKey: t.newIdempotencyKey(),
-		Args:           []any{in.Arg}})
+	})
 	if err != nil {
 		return err
 	}
@@ -498,13 +502,12 @@ func (t *tracingWorkflowInboundInterceptor) HandleQuery(
 	span, ctx, err := t.root.startSpanFromWorkflowContext(ctx, &TracerStartSpanOptions{
 		Operation: "HandleQuery",
 		Name:      in.QueryType,
-		Tags: map[string]string{
+		Tags: mergeTags(map[string]string{
 			workflowIDTagKey: info.WorkflowExecution.ID,
 			runIDTagKey:      info.WorkflowExecution.RunID,
-		},
+		}, t.root.options.GetSpanTagsFunc, in.Args...),
 		FromHeader: true,
 		Time:       time.Now(),
-		Args:       in.Args,
 		// We intentionally do not set IdempotencyKey here because queries are not recorded in
 		// workflow history. When the tracing interceptor's span counter is reset between workflow
 		// replays, old queries will not be processed which could result in idempotency key
@@ -659,13 +662,12 @@ func (t *tracingWorkflowOutboundInterceptor) startNonReplaySpan(
 		Operation:  operation,
 		Name:       name,
 		DependedOn: dependedOn,
-		Tags: map[string]string{
+		Tags: mergeTags(map[string]string{
 			workflowIDTagKey: info.WorkflowExecution.ID,
 			runIDTagKey:      info.WorkflowExecution.RunID,
-		},
+		}, t.root.options.GetSpanTagsFunc, args...),
 		ToHeader: true,
 		Time:     time.Now(),
-		Args:     args,
 	})
 	if err != nil {
 		return nopSpan{}, ctx, newErrFut(ctx, err)
@@ -776,4 +778,24 @@ func (e errFut) GetChildWorkflowExecution() workflow.Future { return e }
 
 func (e errFut) SignalChildWorkflow(ctx workflow.Context, signalName string, data interface{}) workflow.Future {
 	return e
+}
+
+func mergeTags(requiredTags map[string]string, getTagsFunc func(p any) map[string]string, args ...any) map[string]string {
+	finalTags := make(map[string]string)
+
+	// Populate custom tags from args
+	if getTagsFunc != nil {
+		for _, p := range args {
+			for k, v := range getTagsFunc(p) {
+				finalTags[k] = v
+			}
+		}
+	}
+
+	// Ensure required tags are always set
+	for k, v := range requiredTags {
+		finalTags[k] = v
+	}
+
+	return finalTags
 }
