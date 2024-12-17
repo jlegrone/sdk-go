@@ -121,11 +121,6 @@ type TracerOptions struct {
 	//                 as an argument. Also, how should we treat tag key/values that
 	//                 conflict with tags the tracer already uses by default?
 	GetSpanTagsFunc func(payload any) map[string]string
-
-	// GetLogFieldsFunc generates custom fields to be included on logs emitted
-	// by the workflow or activity. The payload argument may be a workflow,
-	// activity, signal, or update payload.
-	GetLogFieldsFunc func(payload any) map[string]any
 }
 
 // TracerStartSpanOptions are options for Tracer.StartSpan.
